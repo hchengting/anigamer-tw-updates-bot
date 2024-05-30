@@ -1,0 +1,27 @@
+{
+  "name": "anigamer_tw_updates_bot",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "node main.js",
+    "build": "babel main.js -d lib && ncc build lib/main.js -o dist && rd /s /q lib && pkg . && copy .env dist"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3",
+    "node-html-parser": "^6.1.13",
+    "node-telegram-bot-api": "^0.66.0"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.24.6",
+    "@babel/core": "^7.24.6",
+    "@babel/preset-env": "^7.24.6"
+  },
+  "pkg": {
+    "outputPath": "dist",
+    "targets": [
+      "node18-win-x64"
+    ]
+  },
+  "bin": "dist/index.js"
+}
