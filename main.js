@@ -19,9 +19,17 @@ async function checkNewUpdates(data) {
   try {
     const prevData = JSON.parse(await fs.readFile(dataPath, 'utf8'))
     const prevDataHashList = prevData.map((item) => hash(item))
-    return data.filter((item) => !prevDataHashList.includes(hash(item)))
+    const newUpdates = []
+    for (const item of data) {
+      if (!prevDataHashList.includes(hash(item))) {
+        newUpdates.push(item)
+      } else {
+        break
+      }
+    }
+    return newUpdates
   } catch (error) {
-    console.error('Error reading or hashing previous data:', error)
+    console.error('Error reading previous data:', error)
     return []
   }
 }
@@ -60,7 +68,6 @@ async function fetchData(scheduled) {
     }
 
     const content = await response.text()
-
     const root = HTMLParser.parse(content)
     const animeNodeList = root.querySelectorAll(
       'div.newanime-wrap.timeline-ver > div.newanime-block > div.newanime-date-area:not(.premium-block)'
