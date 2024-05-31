@@ -29,7 +29,7 @@ async function checkNewUpdates(data) {
     }
     return newUpdates
   } catch (error) {
-    console.error('Error reading previous data:', error)
+    console.error('Error checking new updates:', error)
     return []
   }
 }
@@ -41,7 +41,7 @@ async function sendUpdates(updates) {
       await bot.sendMessage(channel, item.content)
       console.log(`Sent: ${item.content}`)
     } catch (error) {
-      console.error('Error sending message:', error)
+      console.error('Error sending updates:', error)
     }
   }
 }
@@ -103,14 +103,15 @@ async function main(scheduled) {
 
   try {
     const data = await fetchData(scheduled)
+    const updates = await checkNewUpdates(data)
 
     if (scheduled) {
-      const updates = await checkNewUpdates(data)
       await sendUpdates(updates)
     }
 
-    if (data.length !== 0) {
+    if (data.length > 0 && (!scheduled || updates.length > 0)) {
       await fs.writeFile(dataPath, JSON.stringify(data))
+      console.log('New Data saved.')
     }
   } catch (error) {
     console.error('Error in main function:', error)
