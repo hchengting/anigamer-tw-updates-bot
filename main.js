@@ -7,6 +7,12 @@ const cron = require('node-cron')
 
 const token = process.env.TELEGRAM_BOT_TOKEN
 const channel = process.env.TELEGRAM_CHANNEL_ID
+
+if (!token || !channel) {
+  console.error('Error: TELEGRAM_BOT_TOKEN and TELEGRAM_CHANNEL_ID must be set')
+  process.exit(1)
+}
+
 const bot = new TelegramBot(token)
 
 const dataPath = './data.json'
@@ -16,10 +22,12 @@ function hash(item) {
 }
 
 async function checkNewUpdates(data) {
+  const newUpdates = []
+
   try {
     const prevData = JSON.parse(await fs.readFile(dataPath, 'utf8'))
     const prevDataHashList = prevData.map((item) => hash(item))
-    const newUpdates = []
+
     for (const item of data) {
       if (!prevDataHashList.includes(hash(item))) {
         newUpdates.push(item)
@@ -27,31 +35,27 @@ async function checkNewUpdates(data) {
         break
       }
     }
-    return newUpdates
   } catch (error) {
     console.error('Error checking new updates:', error)
-    return []
   }
+
+  return newUpdates
 }
 
 async function sendUpdates(updates) {
   updates.reverse()
+
   for (const item of updates) {
     try {
       await bot.sendMessage(channel, item.content)
       console.log(`Sent: ${item.content}`)
     } catch (error) {
-      console.error('Error sending updates:', error)
+      throw new Error(`Error sending message: ${error.message}`)
     }
   }
 }
 
-async function fetchData(scheduled) {
-  if (scheduled) {
-    // Wait 30 seconds before fetch
-    await new Promise((resolve) => setTimeout(resolve, 30000))
-  }
-
+async function fetchData() {
   const data = []
   const url = 'https://ani.gamer.com.tw/'
 
@@ -98,39 +102,43 @@ async function fetchData(scheduled) {
   return data
 }
 
-async function main(scheduled) {
-  console.log(scheduled ? 'Scheduled at:' : 'Started at:', new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }))
+async function schedule() {
+  console.log('Scheduled at:', new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }))
+
+  // Wait for 30 seconds to avoid page not updated
+  await new Promise((resolve) => setTimeout(resolve, 30000))
 
   try {
-    const data = await fetchData(scheduled)
+    const data = await fetchData()
     const updates = await checkNewUpdates(data)
 
-    if (scheduled) {
+    if (updates.length > 0) {
       await sendUpdates(updates)
-    }
-
-    if (data.length > 0 && (!scheduled || updates.length > 0)) {
       await fs.writeFile(dataPath, JSON.stringify(data))
-      console.log('New Data saved.')
+      console.log('New data saved')
     }
   } catch (error) {
-    console.error('Error in main function:', error)
+    console.error('Error scheduling:', error)
+  }
+}
+
+async function start() {
+  console.log('Started at:', new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }))
+
+  try {
+    const data = await fetchData()
+    await fs.writeFile(dataPath, JSON.stringify(data))
+    console.log('Data saved')
+  } catch (error) {
+    console.error('Error starting:', error)
   }
 }
 
 // Handle process termination gracefully
-process.on('SIGINT', () => {
-  console.log('Bot is shutting down...')
-  process.exit()
-})
-
-process.on('SIGTERM', () => {
-  console.log('Bot is shutting down...')
-  process.exit()
-})
-
-console.log(token, channel)
+process.on('SIGINT', () => process.exit())
+process.on('SIGTERM', () => process.exit())
 
 // Update every 15 minutes
-cron.schedule('*/15 * * * *', () => main(true))
-main(false)
+cron.schedule('*/15 * * * *', schedule)
+
+start()
