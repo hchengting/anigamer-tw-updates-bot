@@ -9,13 +9,13 @@ const token = process.env.TELEGRAM_BOT_TOKEN
 const channel = process.env.TELEGRAM_CHANNEL_ID
 
 if (!token || !channel) {
-  console.error('Error: TELEGRAM_BOT_TOKEN and TELEGRAM_CHANNEL_ID must be set')
+  console.error('[ERROR]: TELEGRAM_BOT_TOKEN and TELEGRAM_CHANNEL_ID must be set')
   process.exit(1)
 }
 
 const bot = new TelegramBot(token)
 
-const dataPath = './data.json'
+const filePath = './animes.json'
 
 /**
  * @typedef {Object} Anime
@@ -27,14 +27,14 @@ const dataPath = './data.json'
  */
 
 /**
- * Fetch full anime list data from the website
- * @returns {Promise<Anime[]>} Full anime list data in reverse chronological order
+ * Fetch full anime list from the website
+ * @returns {Promise<Anime[]>} Full anime list in reverse chronological order
  */
-async function fetchAnimeData() {
-  const data = []
+async function fetchAnimes() {
+  const animes = []
   const url = 'https://ani.gamer.com.tw/'
 
-  // Wait for 30 seconds to avoid page not updated
+  // Wait 30 seconds in case the anime list is not updated
   await new Promise((resolve) => setTimeout(resolve, 30000))
 
   try {
@@ -62,7 +62,7 @@ async function fetchAnimeData() {
       const hhmm = animeNode.querySelector('span.anime-hours').text
       const time = `${mmdd} ${hhmm}`
 
-      data.push({
+      animes.push({
         title,
         link,
         content,
@@ -71,10 +71,10 @@ async function fetchAnimeData() {
       })
     })
   } catch (error) {
-    console.error('Error fetching anime data:', error.message)
+    console.error('[ERROR][fetchAnimes]:', error.message)
   }
 
-  return data
+  return animes
 }
 
 /**
@@ -100,73 +100,73 @@ async function isFileExist(path) {
 }
 
 /**
- * Check for new anime updates
- * @param {Anime[]} data Full anime list data in reverse chronological order
- * @returns {Promise<Anime[]>} New anime updates in reverse chronological order
+ * Compare with the previous anime list and check for updates
+ * @param {Anime[]} animes Full anime list in reverse chronological order
+ * @returns {Promise<Anime[]>} Anime updates in reverse chronological order
  */
-async function checkAnimeUpdates(data) {
-  const newUpdates = []
+async function checkAnimeUpdates(animes) {
+  const updates = []
 
   try {
-    if (!(await isFileExist(dataPath))) {
-      throw new Error('Data file not found')
+    if (!(await isFileExist(filePath))) {
+      throw new Error(`File not found: ${filePath}`)
     }
 
-    const prevData = JSON.parse(await fs.readFile(dataPath, 'utf8'))
-    const prevDataHashList = prevData.map((item) => hash(item))
+    const prevAnimes = JSON.parse(await fs.readFile(filePath, 'utf8'))
+    const prevAnimesHashList = prevAnimes.map((anime) => hash(anime))
 
-    for (const item of data) {
-      if (!prevDataHashList.includes(hash(item))) {
-        newUpdates.push(item)
+    for (const anime of animes) {
+      if (!prevAnimesHashList.includes(hash(anime))) {
+        updates.push(anime)
       } else {
         break
       }
     }
   } catch (error) {
-    console.error('Error checking new anime updates:', error.message)
-  }
-
-  return newUpdates
-}
-
-/**
- * Send anime updates in chronological order to the channel
- * @param {Anime[]} updates New anime updates in reverse chronological order
- * @returns {Promise<Anime[]>} Unsent anime updates in reverse chronological order
- */
-async function sendAnimeUpdates(updates) {
-  let item
-
-  try {
-    while (updates.length) {
-      item = updates.pop()
-      await bot.sendMessage(channel, item.content)
-      console.log(`Sent: ${item.content}`)
-    }
-  } catch (error) {
-    updates.push(item) // Put the unsent item back to the list
-    console.error(`Error sending message to channel: ${error.message}`)
+    console.error('[ERROR][checkAnimeUpdates]:', error.message)
   }
 
   return updates
 }
 
 /**
- * Remove unsent anime updates from the data and save the data to the file
- * @param {Anime[]} data Full anime list data in reverse chronological order
+ * Send anime updates in chronological order to the channel
+ * @param {Anime[]} updates Anime updates in reverse chronological order
+ * @returns {Promise<Anime[]>} Unsent anime updates in reverse chronological order
+ */
+async function sendAnimeUpdates(updates) {
+  let anime
+
+  try {
+    while (updates.length) {
+      anime = updates.pop()
+      await bot.sendMessage(channel, anime.content)
+      console.log('[LOG] Sent:', anime.content)
+    }
+  } catch (error) {
+    updates.push(anime) // Put the unsent anime back to the list
+    console.error('[ERROR][sendAnimeUpdates]:', error.message)
+  }
+
+  return updates
+}
+
+/**
+ * Save anime list to a file, excluding unsent updates
+ * @param {Anime[]} animes Full anime list in reverse chronological order
  * @param {Anime[]} unsentUpdates Unsent anime updates in reverse chronological order
  */
-async function saveAnimeData(data, unsentUpdates) {
+async function saveAnimes(animes, unsentUpdates) {
   unsentUpdates.forEach((update) => {
-    const index = data.findIndex((item) => hash(item) === hash(update))
+    const index = animes.findIndex((anime) => hash(anime) === hash(update))
     if (index !== -1) {
-      data.splice(index, 1)
+      animes.splice(index, 1)
     }
   })
 
-  if (data.length > 0) {
-    await fs.writeFile(dataPath, JSON.stringify(data))
-    console.log('Data saved')
+  if (animes.length > 0) {
+    await fs.writeFile(filePath, JSON.stringify(animes))
+    console.log('[LOG] Saved to file:', filePath)
   }
 }
 
@@ -174,15 +174,15 @@ async function saveAnimeData(data, unsentUpdates) {
  * Main scheduling function
  */
 async function schedule() {
-  console.log('Scheduled at:', new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }))
+  console.log('[LOG] Scheduled at:', new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }))
 
   try {
-    const data = await fetchAnimeData()
-    const updates = await checkAnimeUpdates(data)
+    const animes = await fetchAnimes()
+    const updates = await checkAnimeUpdates(animes)
     const unsentUpdates = await sendAnimeUpdates(updates)
-    await saveAnimeData(data, unsentUpdates)
+    await saveAnimes(animes, unsentUpdates)
   } catch (error) {
-    console.error('Error scheduling:', error.message)
+    console.error('[ERROR][schedule]:', error.message)
   }
 }
 
