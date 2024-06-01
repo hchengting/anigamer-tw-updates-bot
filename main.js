@@ -17,45 +17,20 @@ const bot = new TelegramBot(token)
 
 const dataPath = './data.json'
 
-function hash(item) {
-  return crypto.createHash('sha256').update(JSON.stringify(item)).digest('hex')
-}
+/**
+ * @typedef {Object} Anime
+ * @property {String} title Title
+ * @property {String} link Link
+ * @property {String} content Content
+ * @property {String} image Image URL
+ * @property {String} time Time
+ */
 
-async function checkNewUpdates(data) {
-  const newUpdates = []
-
-  try {
-    const prevData = JSON.parse(await fs.readFile(dataPath, 'utf8'))
-    const prevDataHashList = prevData.map((item) => hash(item))
-
-    for (const item of data) {
-      if (!prevDataHashList.includes(hash(item))) {
-        newUpdates.push(item)
-      } else {
-        break
-      }
-    }
-  } catch (error) {
-    console.error('Error checking new updates:', error)
-  }
-
-  return newUpdates
-}
-
-async function sendUpdates(updates) {
-  updates.reverse()
-
-  for (const item of updates) {
-    try {
-      await bot.sendMessage(channel, item.content)
-      console.log(`Sent: ${item.content}`)
-    } catch (error) {
-      throw new Error(`Error sending message: ${error.message}`)
-    }
-  }
-}
-
-async function fetchData() {
+/**
+ * Fetch full anime list data from the website
+ * @returns {Promise<Anime[]>} Full anime list data in reverse chronological order
+ */
+async function fetchAnimeData() {
   const data = []
   const url = 'https://ani.gamer.com.tw/'
 
@@ -96,26 +71,118 @@ async function fetchData() {
       })
     })
   } catch (error) {
-    console.error('Error fetching data:', error)
+    console.error('Error fetching anime data:', error.message)
   }
 
   return data
 }
 
+/**
+ * Hash an Object
+ * @param {Object} object Object to hash
+ * @returns {String} Hashed string
+ */
+function hash(object) {
+  return crypto.createHash('sha256').update(JSON.stringify(object)).digest('hex')
+}
+
+/**
+ * Check if a file exists
+ * @param {String} path File path
+ * @returns {Promise<Boolean>} Whether the file exists or not
+ */
+async function isFileExist(path) {
+  try {
+    return (await fs.stat(path)).isFile()
+  } catch (e) {
+    return false
+  }
+}
+
+/**
+ * Check for new anime updates
+ * @param {Anime[]} data Full anime list data in reverse chronological order
+ * @returns {Promise<Anime[]>} New anime updates in reverse chronological order
+ */
+async function checkAnimeUpdates(data) {
+  const newUpdates = []
+
+  try {
+    if (!(await isFileExist(dataPath))) {
+      throw new Error('Data file not found')
+    }
+
+    const prevData = JSON.parse(await fs.readFile(dataPath, 'utf8'))
+    const prevDataHashList = prevData.map((item) => hash(item))
+
+    for (const item of data) {
+      if (!prevDataHashList.includes(hash(item))) {
+        newUpdates.push(item)
+      } else {
+        break
+      }
+    }
+  } catch (error) {
+    console.error('Error checking new anime updates:', error.message)
+  }
+
+  return newUpdates
+}
+
+/**
+ * Send anime updates in chronological order to the channel
+ * @param {Anime[]} updates New anime updates in reverse chronological order
+ * @returns {Promise<Anime[]>} Unsent anime updates in reverse chronological order
+ */
+async function sendAnimeUpdates(updates) {
+  let item
+
+  try {
+    while (updates.length) {
+      item = updates.pop()
+      await bot.sendMessage(channel, item.content)
+      console.log(`Sent: ${item.content}`)
+    }
+  } catch (error) {
+    updates.push(item) // Put the unsent item back to the list
+    throw new Error(`Error sending message to channel: ${error.message}`)
+  }
+
+  return updates
+}
+
+/**
+ * Remove unsent anime updates from the data and save the data to the file
+ * @param {Anime[]} data Full anime list data in reverse chronological order
+ * @param {Anime[]} unsentUpdates Unsent anime updates in reverse chronological order
+ */
+async function saveAnimeData(data, unsentUpdates) {
+  unsentUpdates.forEach((update) => {
+    const index = data.findIndex((item) => hash(item) === hash(update))
+    if (index !== -1) {
+      data.splice(index, 1)
+    }
+  })
+
+  if (data.length > 0) {
+    await fs.writeFile(dataPath, JSON.stringify(data))
+    console.log('Data saved')
+  }
+}
+
+/**
+ * Main scheduling function
+ */
 async function schedule() {
   console.log('Scheduled at:', new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }))
 
   try {
-    const data = await fetchData()
-    const updates = await checkNewUpdates(data)
-    await sendUpdates(updates)
-
-    if (data.length > 0) {
-      await fs.writeFile(dataPath, JSON.stringify(data))
-      console.log('Data saved')
-    }
+    const data = await fetchAnimeData()
+    const updates = await checkAnimeUpdates(data)
+    const unsentUpdates = await sendAnimeUpdates(updates)
+    await saveAnimeData(data, unsentUpdates)
   } catch (error) {
-    console.error('Error scheduling:', error)
+    console.error('Error scheduling:', error.message)
   }
 }
 
