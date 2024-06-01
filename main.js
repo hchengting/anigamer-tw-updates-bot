@@ -59,11 +59,13 @@ async function fetchData() {
   const data = []
   const url = 'https://ani.gamer.com.tw/'
 
+  // Wait for 30 seconds to avoid page not updated
+  await new Promise((resolve) => setTimeout(resolve, 30000))
+
   try {
     const response = await fetch(url, {
       headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0',
       },
     })
 
@@ -73,9 +75,7 @@ async function fetchData() {
 
     const content = await response.text()
     const root = HTMLParser.parse(content)
-    const animeNodeList = root.querySelectorAll(
-      'div.newanime-wrap.timeline-ver > div.newanime-block > div.newanime-date-area:not(.premium-block)'
-    )
+    const animeNodeList = root.querySelectorAll('div.newanime-wrap.timeline-ver > div.newanime-block > div.newanime-date-area:not(.premium-block)')
 
     animeNodeList.forEach((animeNode) => {
       const title = `${animeNode.querySelector('div.anime-name > p').text}`
@@ -105,32 +105,17 @@ async function fetchData() {
 async function schedule() {
   console.log('Scheduled at:', new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }))
 
-  // Wait for 30 seconds to avoid page not updated
-  await new Promise((resolve) => setTimeout(resolve, 30000))
-
   try {
     const data = await fetchData()
     const updates = await checkNewUpdates(data)
+    await sendUpdates(updates)
 
-    if (updates.length > 0) {
-      await sendUpdates(updates)
+    if (data.length > 0) {
       await fs.writeFile(dataPath, JSON.stringify(data))
-      console.log('New data saved')
+      console.log('Data saved')
     }
   } catch (error) {
     console.error('Error scheduling:', error)
-  }
-}
-
-async function start() {
-  console.log('Started at:', new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }))
-
-  try {
-    const data = await fetchData()
-    await fs.writeFile(dataPath, JSON.stringify(data))
-    console.log('Data saved')
-  } catch (error) {
-    console.error('Error starting:', error)
   }
 }
 
@@ -139,6 +124,4 @@ process.on('SIGINT', () => process.exit())
 process.on('SIGTERM', () => process.exit())
 
 // Update every 15 minutes
-cron.schedule('*/15 * * * *', schedule)
-
-start()
+cron.schedule('*/15 * * * *', schedule, { runOnInit: true })
