@@ -145,7 +145,7 @@ async function sendAnimeUpdates(updates) {
     }
   } catch (error) {
     updates.push(item) // Put the unsent item back to the list
-    throw new Error(`Error sending message to channel: ${error.message}`)
+    console.error(`Error sending message to channel: ${error.message}`)
   }
 
   return updates
