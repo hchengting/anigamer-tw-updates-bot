@@ -53,7 +53,7 @@ async function fetchAnimes() {
     const animeNodeList = root.querySelectorAll('div.newanime-wrap.timeline-ver > div.newanime-block > div.newanime-date-area:not(.premium-block)')
 
     animeNodeList.forEach((animeNode) => {
-      const title = `${animeNode.querySelector('div.anime-name > p').text}`
+      const title = `${animeNode.querySelector('p.anime-name').text}`
       const link = `${url}${animeNode.querySelector('a.anime-card-block').getAttribute('href')}`
       const episode = animeNode.querySelector('div.anime-episode > p').text.match(/\d+/)[0]
       const content = `【更新通知】${title} [${episode}]\n${link}`
