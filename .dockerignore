@@ -1,5 +1,4 @@
 .env
 .git
-dist
-lib
+.github
 node_modules

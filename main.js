@@ -1,4 +1,3 @@
-require('dotenv').config();
 const fs = require('fs').promises;
 const crypto = require('crypto');
 const TelegramBot = require('node-telegram-bot-api');
@@ -59,11 +58,11 @@ async function fetchAnimes() {
             const title = animeNode.querySelector('p.anime-name').text;
             const link = `${url}${animeNode.querySelector('a.anime-card-block').getAttribute('href')}`;
             const episode =
-                animeNode.querySelector('div.anime-episode > p')?.text?.match(/\d+/)[0] ||
+                animeNode.querySelector('div.anime-episode > p')?.text?.match(/\d+/)?.[0] ||
                 animeNode.querySelector('div.anime-label-block > span').text;
             const content = `【更新通知】${title} [${episode}]\n${link}`;
             const image = animeNode.querySelector('div.anime-blocker > img').getAttribute('data-src');
-            const mmdd = animeNode.querySelector('span.anime-date-info').text.match(/\b(\d{2})\/(\d{2})\b/)[0];
+            const mmdd = animeNode.querySelector('span.anime-date-info').text.match(/\b(\d{2})\/(\d{2})\b/)?.[0];
             const hhmm = animeNode.querySelector('span.anime-hours').text;
             const time = `${mmdd} ${hhmm}`;
 
